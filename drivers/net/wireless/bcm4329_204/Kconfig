@@ -1,4 +1,4 @@
-config BCM4329
+config BCM4329_204
 	tristate "Broadcom 4329 wireless cards support"
 	depends on MMC
 	select WIRELESS_EXT
@@ -12,21 +12,21 @@ config BCM4329
 	  If you choose to build a module, it'll be called dhd. Say M if
 	  unsure.
 
-config BCM4329_SOFTAP
+config BCM4329_204_SOFTAP
 	depends on BCM4329
 	bool "Broadcom 4329 Soft AP function"
 	---help---
 	  BCM4329 soft AP function	
 
 
-config BCM4329_FW_PATH
+config BCM4329_204_FW_PATH
 	depends on BCM4329
 	string "Firmware path"
 	default "/system/etc/firmware/fw_bcm4329.bin"
 	---help---
 	  Path to the firmware file.
 
-config BCM4329_NVRAM_PATH
+config BCM4329_204_NVRAM_PATH
 	depends on BCM4329
 	string "NVRAM path"
 	default "/proc/calibration"
