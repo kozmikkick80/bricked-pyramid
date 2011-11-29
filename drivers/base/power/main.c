@@ -224,156 +224,20 @@ static void dpm_wait_for_children(struct device *dev, bool async)
        device_for_each_child(dev, &async, dpm_wait_fn);
 }
 
-/**
- * pm_op - Execute the PM operation appropriate for given PM event.
- * @dev: Device to handle.
- * @ops: PM operations to choose from.
- * @state: PM transition of the system being carried out.
- */
-static int pm_op(struct device *dev,
-		 const struct dev_pm_ops *ops,
-		 pm_message_t state)
+static int dpm_run_callback(struct device *dev, int (*cb)(struct device *))
 {
-	int error = 0;
 	ktime_t calltime;
+	int error;
+
+	if (!cb)
+		return 0;
 
 	calltime = initcall_debug_start(dev);
 
-	switch (state.event) {
-#ifdef CONFIG_SUSPEND
-	case PM_EVENT_SUSPEND:
-		if (ops->suspend) {
-			pm_dev_trace(TRACE_DPM_SUSPEND, dev, state, "");
-			error = ops->suspend(dev);
-			suspend_report_result(ops->suspend, error);
-		}
-		break;
-	case PM_EVENT_RESUME:
-		if (ops->resume) {
-			pm_dev_trace(TRACE_DPM_RESUME, dev, state, "");
-			error = ops->resume(dev);
-			suspend_report_result(ops->resume, error);
-		}
-		break;
-#endif /* CONFIG_SUSPEND */
-#ifdef CONFIG_HIBERNATION
-	case PM_EVENT_FREEZE:
-	case PM_EVENT_QUIESCE:
-		if (ops->freeze) {
-			error = ops->freeze(dev);
-			suspend_report_result(ops->freeze, error);
-		}
-		break;
-	case PM_EVENT_HIBERNATE:
-		if (ops->poweroff) {
-			error = ops->poweroff(dev);
-			suspend_report_result(ops->poweroff, error);
-		}
-		break;
-	case PM_EVENT_THAW:
-	case PM_EVENT_RECOVER:
-		if (ops->thaw) {
-			error = ops->thaw(dev);
-			suspend_report_result(ops->thaw, error);
-		}
-		break;
-	case PM_EVENT_RESTORE:
-		if (ops->restore) {
-			error = ops->restore(dev);
-			suspend_report_result(ops->restore, error);
-		}
-		break;
-#endif /* CONFIG_HIBERNATION */
-	default:
-		error = -EINVAL;
-	}
+	error = cb(dev);
+	suspend_report_result(cb, error);
 
 	initcall_debug_report(dev, calltime, error);
-
-	return error;
-}
-
-/**
- * pm_noirq_op - Execute the PM operation appropriate for given PM event.
- * @dev: Device to handle.
- * @ops: PM operations to choose from.
- * @state: PM transition of the system being carried out.
- *
- * The driver of @dev will not receive interrupts while this function is being
- * executed.
- */
-static int pm_noirq_op(struct device *dev,
-			const struct dev_pm_ops *ops,
-			pm_message_t state)
-{
-	int error = 0;
-	ktime_t calltime = { .tv64 = 0 }, delta, rettime;
-
-	if (initcall_debug) {
-		pr_info("calling  %s+ @ %i, parent: %s\n",
-				dev_name(dev), task_pid_nr(current),
-				dev->parent ? dev_name(dev->parent) : "none");
-		calltime = ktime_get();
-	}
-
-	switch (state.event) {
-#ifdef CONFIG_SUSPEND
-	case PM_EVENT_SUSPEND:
-		if (ops->suspend_noirq) {
-			pm_dev_trace(TRACE_DPM_SUSPEND_NOIRQ,
-				dev, state, "LATE ");
-			error = ops->suspend_noirq(dev);
-			suspend_report_result(ops->suspend_noirq, error);
-		}
-		break;
-	case PM_EVENT_RESUME:
-		if (ops->resume_noirq) {
-			pm_dev_trace(TRACE_DPM_RESUME_NOIRQ,
-				dev, state, "EARLY ");
-			error = ops->resume_noirq(dev);
-			suspend_report_result(ops->resume_noirq, error);
-		}
-		break;
-#endif /* CONFIG_SUSPEND */
-#ifdef CONFIG_HIBERNATION
-	case PM_EVENT_FREEZE:
-	case PM_EVENT_QUIESCE:
-		if (ops->freeze_noirq) {
-			error = ops->freeze_noirq(dev);
-			suspend_report_result(ops->freeze_noirq, error);
-		}
-		break;
-	case PM_EVENT_HIBERNATE:
-		if (ops->poweroff_noirq) {
-			error = ops->poweroff_noirq(dev);
-			suspend_report_result(ops->poweroff_noirq, error);
-		}
-		break;
-	case PM_EVENT_THAW:
-	case PM_EVENT_RECOVER:
-		if (ops->thaw_noirq) {
-			error = ops->thaw_noirq(dev);
-			suspend_report_result(ops->thaw_noirq, error);
-		}
-		break;
-	case PM_EVENT_RESTORE:
-		if (ops->restore_noirq) {
-			error = ops->restore_noirq(dev);
-			suspend_report_result(ops->restore_noirq, error);
-		}
-		break;
-#endif /* CONFIG_HIBERNATION */
-	default:
-		error = -EINVAL;
-	}
-
-	if (initcall_debug) {
-		rettime = ktime_get();
-		delta = ktime_sub(rettime, calltime);
-		printk("initcall %s_i+ returned %d after %Ld usecs\n",
-			dev_name(dev), error,
-			(unsigned long long)ktime_to_ns(delta) >> 10);
-	}
 
 	return error;
 }
@@ -461,21 +325,22 @@ static int device_resume_noirq(struct device *dev, pm_message_t state)
 
 	if (dev->bus && dev->bus->pm) {
 		pm_dev_dbg(dev, state, "EARLY ");
-		error = pm_noirq_op(dev, dev->bus->pm, state);
+		error = dpm_run_callback(dev, dev->bus->pm->resume_noirq);
 		if (error)
 			goto End;
 	}
 
+
 	if (dev->type && dev->type->pm) {
 		pm_dev_dbg(dev, state, "EARLY type ");
-		error = pm_noirq_op(dev, dev->type->pm, state);
+		error = dpm_run_callback(dev, dev->type->pm->resume_noirq);
 		if (error)
 			goto End;
 	}
 
 	if (dev->class && dev->class->pm) {
 		pm_dev_dbg(dev, state, "EARLY class ");
-		error = pm_noirq_op(dev, dev->class->pm, state);
+		error = dpm_run_callback(dev, dev->class->pm->resume_noirq);
 	}
 
 End:
@@ -554,7 +419,7 @@ static int device_resume(struct device *dev, pm_message_t state, bool async)
 	if (dev->bus) {
 		if (dev->bus->pm) {
 			pm_dev_dbg(dev, state, "");
-			error = pm_op(dev, dev->bus->pm, state);
+			error = dpm_run_callback(dev, dev->bus->pm->resume);
 		} else if (dev->bus->resume) {
 			pm_dev_dbg(dev, state, "legacy ");
 			pm_dev_trace(TRACE_DPM_RESUME, dev, state, "legacy ");
@@ -567,7 +432,7 @@ static int device_resume(struct device *dev, pm_message_t state, bool async)
 	if (dev->type) {
 		if (dev->type->pm) {
 			pm_dev_dbg(dev, state, "type ");
-			error = pm_op(dev, dev->type->pm, state);
+			error = dpm_run_callback(dev, dev->type->pm->resume);
 		}
 		if (error)
 			goto End;
@@ -576,7 +441,7 @@ static int device_resume(struct device *dev, pm_message_t state, bool async)
 	if (dev->class) {
 		if (dev->class->pm) {
 			pm_dev_dbg(dev, state, "class ");
-			error = pm_op(dev, dev->class->pm, state);
+			error = dpm_run_callback(dev, dev->class->pm->resume);
 		} else if (dev->class->resume) {
 			pm_dev_dbg(dev, state, "legacy class ");
 			pm_dev_trace(TRACE_DPM_RESUME,
@@ -827,21 +692,21 @@ static int device_suspend_noirq(struct device *dev, pm_message_t state)
 
 	if (dev->class && dev->class->pm) {
 		pm_dev_dbg(dev, state, "LATE class ");
-		error = pm_noirq_op(dev, dev->class->pm, state);
+		error = dpm_run_callback(dev, dev->class->pm->suspend_noirq);
 		if (error)
 			goto End;
 	}
 
 	if (dev->type && dev->type->pm) {
 		pm_dev_dbg(dev, state, "LATE type ");
-		error = pm_noirq_op(dev, dev->type->pm, state);
+		error = dpm_run_callback(dev, dev->type->pm->suspend_noirq);
 		if (error)
 			goto End;
 	}
 
 	if (dev->bus && dev->bus->pm) {
 		pm_dev_dbg(dev, state, "LATE ");
-		error = pm_noirq_op(dev, dev->bus->pm, state);
+		error = dpm_run_callback(dev, dev->bus->pm->suspend_noirq);
 	}
 
 End:
@@ -923,7 +788,7 @@ static int __device_suspend(struct device *dev, pm_message_t state, bool async)
 	if (dev->class) {
 		if (dev->class->pm) {
 			pm_dev_dbg(dev, state, "class ");
-			error = pm_op(dev, dev->class->pm, state);
+			error = dpm_run_callback(dev, dev->class->pm->suspend);
 		} else if (dev->class->suspend) {
 			pm_dev_dbg(dev, state, "legacy class ");
 			pm_dev_trace(TRACE_DPM_SUSPEND,
@@ -937,7 +802,7 @@ static int __device_suspend(struct device *dev, pm_message_t state, bool async)
 	if (dev->type) {
 		if (dev->type->pm) {
 			pm_dev_dbg(dev, state, "type ");
-			error = pm_op(dev, dev->type->pm, state);
+			error = dpm_run_callback(dev, dev->type->pm->suspend);
 		}
 		if (error)
 			goto End;
@@ -946,7 +811,7 @@ static int __device_suspend(struct device *dev, pm_message_t state, bool async)
 	if (dev->bus) {
 		if (dev->bus->pm) {
 			pm_dev_dbg(dev, state, "");
-			error = pm_op(dev, dev->bus->pm, state);
+			error = dpm_run_callback(dev, dev->bus->pm->suspend);
 		} else if (dev->bus->suspend) {
 			pm_dev_dbg(dev, state, "legacy ");
 			pm_dev_trace(TRACE_DPM_SUSPEND, dev, state, "legacy ");
