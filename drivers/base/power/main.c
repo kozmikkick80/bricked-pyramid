@@ -178,8 +178,9 @@ static ktime_t initcall_debug_start(struct device *dev)
 	ktime_t calltime = ktime_set(0, 0);
 
 	if (initcall_debug) {
-		pr_info("calling  %s+ @ %i\n",
-				dev_name(dev), task_pid_nr(current));
+		pr_info("calling  %s+ @ %i, parent: %s\n",
+			dev_name(dev), task_pid_nr(current),
+			dev->parent ? dev_name(dev->parent) : "none");
 		calltime = ktime_get();
 	}
 
@@ -378,26 +379,6 @@ void dpm_resume_noirq(pm_message_t state)
 EXPORT_SYMBOL_GPL(dpm_resume_noirq);
 
 /**
- * legacy_resume - Execute a legacy (bus or class) resume callback for device.
- * @dev: Device to resume.
- * @cb: Resume callback to execute.
- */
-static int legacy_resume(struct device *dev, int (*cb)(struct device *dev))
-{
-	int error;
-	ktime_t calltime;
-
-	calltime = initcall_debug_start(dev);
-
-	error = cb(dev);
-	suspend_report_result(cb, error);
-
-	initcall_debug_report(dev, calltime, error);
-
-	return error;
-}
-
-/**
  * device_resume - Execute "resume" callbacks for given device.
  * @dev: Device to handle.
  * @state: PM transition of the system being carried out.
@@ -423,7 +404,7 @@ static int device_resume(struct device *dev, pm_message_t state, bool async)
 		} else if (dev->bus->resume) {
 			pm_dev_dbg(dev, state, "legacy ");
 			pm_dev_trace(TRACE_DPM_RESUME, dev, state, "legacy ");
-			error = legacy_resume(dev, dev->bus->resume);
+			error = dpm_run_callback(dev, dev->bus->resume);
 		}
 		if (error)
 			goto End;
@@ -446,7 +427,7 @@ static int device_resume(struct device *dev, pm_message_t state, bool async)
 			pm_dev_dbg(dev, state, "legacy class ");
 			pm_dev_trace(TRACE_DPM_RESUME,
 				dev, state, "legacy class ");
-			error = legacy_resume(dev, dev->class->resume);
+			error = dpm_run_callback(dev, dev->class->resume);
 		}
 	}
  End:
