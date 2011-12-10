@@ -335,7 +335,7 @@ static int kgsl_resume(struct platform_device *dev)
 		mutex_lock(&device->mutex);
 		if (device->state == KGSL_STATE_SUSPEND) {
 			device->requested_state = KGSL_STATE_ACTIVE;
-			kgsl_pwrctrl_pwrlevel_change(device, KGSL_PWRLEVEL_NOMINAL);
+			kgsl_pwrctrl_pwrlevel_change(device, KGSL_DEFAULT_PWRLEVEL);
 			status = device->ftbl.device_start(device, 0);
 			if (status == KGSL_SUCCESS) {
 				device->state = KGSL_STATE_ACTIVE;
@@ -364,7 +364,7 @@ void kgsl_early_suspend_driver(struct early_suspend *h)
        struct kgsl_device *device = container_of(h,
                                        struct kgsl_device, display_off);
 	mutex_lock(&device->mutex);
-	kgsl_pwrctrl_pwrlevel_change(device, KGSL_PWRLEVEL_NOMINAL);
+	kgsl_pwrctrl_pwrlevel_change(device, KGSL_DEFAULT_PWRLEVEL);
 	mutex_unlock(&device->mutex);
 }
 EXPORT_SYMBOL(kgsl_early_suspend_driver);
