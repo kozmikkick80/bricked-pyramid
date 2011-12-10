@@ -1086,12 +1086,28 @@ done:
 static struct vm_area_struct *kgsl_get_vma_from_start_addr(unsigned int addr)
 {
 	struct vm_area_struct *vma;
+	int len;
 
 	down_read(&current->mm->mmap_sem);
 	vma = find_vma(current->mm, addr);
 	up_read(&current->mm->mmap_sem);
-	if (!vma)
-		KGSL_MEM_ERR("Could not find vma for address %x\n", addr);
+	if (!vma) {
+		KGSL_MEM_ERR("Could not find vma for address %x\n",
+			   addr);
+		return NULL;
+	}
+	len = vma->vm_end - vma->vm_start;
+	if (vma->vm_pgoff || !KGSL_IS_PAGE_ALIGNED(len) ||
+	  !KGSL_IS_PAGE_ALIGNED(vma->vm_start)) {
+		KGSL_MEM_ERR
+		("user address mapping must be at offset 0 and page aligned\n");
+		return NULL;
+	}
+	if (vma->vm_start != addr) {
+		KGSL_MEM_ERR
+		  ("vma start address is not equal to mmap address\n");
+		return NULL;
+	}
  
 	return vma;
 }
