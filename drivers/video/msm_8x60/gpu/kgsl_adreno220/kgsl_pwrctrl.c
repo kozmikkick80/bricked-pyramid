@@ -762,7 +762,7 @@ int kgsl_pwrctrl_wake(struct kgsl_device *device)
 
 	BUG_ON(!mutex_is_locked(&device->mutex));
 
-	if (device->state == KGSL_STATE_SUSPEND)
+	if (device->state & (KGSL_STATE_SUSPEND | KGSL_STATE_INIT))
 		return status;
 
 	/* Turn on the core clocks */
