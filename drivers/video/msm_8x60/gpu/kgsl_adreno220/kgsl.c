@@ -400,6 +400,7 @@ void kgsl_late_resume_driver(struct early_suspend *h)
 			KGSL_PWR_ERR("Can't wakeup device %d\n",
 						device->id);
 		mutex_unlock(&device->mutex);
+		kgsl_check_idle(device);
 	}
 }
 EXPORT_SYMBOL(kgsl_late_resume_driver);
