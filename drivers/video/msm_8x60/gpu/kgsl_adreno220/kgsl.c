@@ -361,21 +361,46 @@ static int kgsl_resume(struct platform_device *dev)
 
 void kgsl_early_suspend_driver(struct early_suspend *h)
 {
-       struct kgsl_device *device = container_of(h,
-                                       struct kgsl_device, display_off);
-	mutex_lock(&device->mutex);
-	kgsl_pwrctrl_pwrlevel_change(device, KGSL_DEFAULT_PWRLEVEL);
-	mutex_unlock(&device->mutex);
+	int i, result;
+        struct kgsl_device *device = container_of(h,
+                                        struct kgsl_device, display_off);
+
+	for (i = 0; i < KGSL_DEVICE_MAX; i++) {
+		device = kgsl_driver.devp[i];
+		if (!device)
+			continue;
+
+		mutex_lock(&device->mutex);
+		device->requested_state = KGSL_STATE_SUSPEND;
+		result = kgsl_pwrctrl_sleep(device);
+		if (result == KGSL_SUCCESS)
+			KGSL_PWR_INFO("Falling into sleep, device %d\n",
+					device->id);
+		else
+			KGSL_PWR_ERR("Can't fall asleep, device %d\n",
+					device->id);
+		mutex_unlock(&device->mutex);
+	}
 }
 EXPORT_SYMBOL(kgsl_early_suspend_driver);
 
 void kgsl_late_resume_driver(struct early_suspend *h)
 {
-       struct kgsl_device *device = container_of(h,
-                                       struct kgsl_device, display_off);
-	mutex_lock(&device->mutex);
-	kgsl_pwrctrl_pwrlevel_change(device, KGSL_PWRLEVEL_TURBO);
-	mutex_unlock(&device->mutex);
+	int i, result;
+        struct kgsl_device *device = container_of(h,
+                                        struct kgsl_device, display_off);
+	for (i = 0; i < KGSL_DEVICE_MAX; i++) {
+		device = kgsl_driver.devp[i];
+		if (!device)
+			continue;
+
+		mutex_lock(&device->mutex);
+		result = kgsl_pwrctrl_wake(device);
+		if (result != KGSL_SUCCESS)
+			KGSL_PWR_ERR("Can't wakeup device %d\n",
+						device->id);
+		mutex_unlock(&device->mutex);
+	}
 }
 EXPORT_SYMBOL(kgsl_late_resume_driver);
 
