@@ -758,13 +758,12 @@ kgsl_ringbuffer_issueibcmds(struct kgsl_device_private *dev_priv,
 	if (device->state & KGSL_STATE_HUNG)
 		return -EINVAL;
 	if (!(yamato_device->ringbuffer.flags & KGSL_FLAGS_STARTED) ||
-	      context == NULL) {
+	      context == NULL || ibdesc == 0 || numibs == 0) {
 		KGSL_CMD_VDBG("return %d\n", -EINVAL);
 		return -EINVAL;
 	}
 
-	BUG_ON(ibdesc == 0);
-	BUG_ON(numibs == 0);
+	drawctxt = context->devctxt;
 
 	link = kzalloc(sizeof(unsigned int) * numibs * 3, GFP_KERNEL);
 	cmds = link;
