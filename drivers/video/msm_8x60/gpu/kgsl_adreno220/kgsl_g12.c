@@ -113,13 +113,13 @@ static struct kgsl_g12_device device_2d0 = {
 	.iomemname = "kgsl_2d0_reg_memory",
 	.irqname = "kgsl_2d0_irq",
 	.regulator = "fs_gfx2d0",
-                .display_off = {
 #ifdef CONFIG_HAS_EARLYSUSPEND
+                .display_off = {
                         .level = EARLY_SUSPEND_LEVEL_STOP_DRAWING,
                         .suspend = kgsl_early_suspend_driver,
                         .resume = kgsl_late_resume_driver,
-#endif
                 },
+#endif
 };
 
 static struct kgsl_g12_device device_2d1 = {
@@ -141,13 +141,13 @@ static struct kgsl_g12_device device_2d1 = {
 	.iomemname = "kgsl_2d1_reg_memory",
 	.irqname = "kgsl_2d1_irq",
 	.regulator = "fs_gfx2d1",
-                .display_off = {
 #ifdef CONFIG_HAS_EARLYSUSPEND
+                .display_off = {
                         .level = EARLY_SUSPEND_LEVEL_STOP_DRAWING,
                         .suspend = kgsl_early_suspend_driver,
                         .resume = kgsl_late_resume_driver,
-#endif
                 },
+#endif
 };
 
 irqreturn_t kgsl_g12_isr(int irq, void *data)
