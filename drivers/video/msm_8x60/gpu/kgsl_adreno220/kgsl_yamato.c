@@ -539,7 +539,7 @@ kgsl_yamato_init_pwrctrl(struct kgsl_device *device)
 	/* Do not set_rate for targets in sync with AXI */
 	if (pdata->pwrlevel_3d[0].gpu_freq > 0)
 		clk_set_rate(clk, device->pwrctrl.
-			pwrlevels[KGSL_DEFAULT_PWRLEVEL].gpu_freq);
+			pwrlevels[KGSL_PWRLEVEL_TURBO].gpu_freq);
 
 	if (pdata->imem_clk_name != NULL) {
 		clk = clk_get(&pdev->dev, pdata->imem_clk_name);
